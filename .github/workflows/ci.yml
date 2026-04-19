@@ -1,0 +1,63 @@
+# ci.yml — Continuous Integration workflow for add_two_numbers
+#
+# Triggered on every push and pull request to the main branch.
+# Runs the full pytest suite across multiple Python versions to catch
+# version-specific regressions early.
+
+name: CI  # Display name shown in the GitHub Actions tab
+
+# -------------------------------------------------------------------------
+# Trigger conditions
+# -------------------------------------------------------------------------
+on:
+  push:
+    branches: ["main", "claude/*"]  # Run on pushes to main and all claude/* feature branches
+  pull_request:
+    branches: ["main"]              # Run on PRs targeting main
+
+# -------------------------------------------------------------------------
+# Jobs
+# -------------------------------------------------------------------------
+jobs:
+  test:
+    name: Run Tests (Python ${{ matrix.python-version }})
+
+    # runs-on specifies the type of GitHub-hosted runner (virtual machine)
+    runs-on: ubuntu-latest
+
+    # matrix strategy runs this job once per python-version value in parallel
+    strategy:
+      fail-fast: false              # Don't cancel other matrix jobs if one fails
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      # Step 1: Check out the repository code into the runner's workspace
+      - name: Checkout repository
+        uses: actions/checkout@v4   # Official GitHub action to clone the repo
+
+      # Step 2: Install the requested Python version on the runner
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Step 3: Install dependencies
+      # `pip install pytest` is enough since add_two_numbers.py uses only stdlib.
+      # In larger projects this would be: pip install -r requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip   # Ensure pip itself is up to date
+          pip install pytest                    # Install the test framework
+
+      # Step 4: Run the test suite
+      # -v  : verbose output (shows each test name and pass/fail)
+      # --tb=short : compact traceback on failure
+      - name: Run pytest
+        run: |
+          pytest test_add_two_numbers.py -v --tb=short
+
+      # Step 5: Smoke-test the CLI to confirm argparse and logging work end-to-end
+      - name: Smoke test CLI
+        run: |
+          python add_two_numbers.py --a 5 --b 3
